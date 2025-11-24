@@ -30,14 +30,14 @@ cli-chat-app/
 
 ## Work Division
 
-Person 1: Server Core
+Jonathan: Server Core
 
 TCP socket setup and server initialization
 Multi-threaded client handling
 Basic message broadcasting
 Server main loop and connection management
 
-Person 2: Client Application
+Ryota: Client Application
 
 Client socket connection logic
 User interface and input handling
