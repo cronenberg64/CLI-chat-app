@@ -1,6 +1,6 @@
 # CLI Chat App
 
-A network systems final project implementing a command line-based chat application with TCP sockets, concurrent server handling, and real-time messaging capabilities.
+A network systems final project implementing a command line-based chat application with TCP sockets, concurrent server handling, and real-time messaging capabilities using java.
 
 ## Features
 - Direct messaging between users
@@ -15,3 +15,38 @@ A network systems final project implementing a command line-based chat applicati
 - guy 
 
 ## Project Structure
+cli-chat-app/
+├── src/
+│ ├── server/
+│ ├── client/
+│ └── common/
+├── docs/
+├── tests/
+└── README.md
+
+
+## Getting Started
+*Details to be added as development progresses*
+
+## Work Division
+
+Person 1: Server Core
+
+TCP socket setup and server initialization
+Multi-threaded client handling
+Basic message broadcasting
+Server main loop and connection management
+
+Person 2: Client Application
+
+Client socket connection logic
+User interface and input handling
+Message display formatting
+Client command parsing
+
+Person 3: Protocol & Features
+
+Message protocol design and parsing
+File transfer implementation
+Channel system (optional feature)
+Error handling and protocol states
