@@ -12,7 +12,7 @@ A network systems final project implementing a command line-based chat applicati
 ## Team Members
 - Jonathan Setiawan
 - Kawata Ryota
-- guy 
+- person
 
 ## Project Structure
 cli-chat-app/
