@@ -12,7 +12,7 @@ A network systems final project implementing a command line-based chat applicati
 ## Team Members
 - Jonathan Setiawan
 - Kawata Ryota
-- person
+- Soncillan Nika Kristin Esclamado
 
 ## Project Structure
 ```
@@ -49,7 +49,7 @@ User interface and input handling
 Message display formatting
 Client command parsing
 
-Person 3: Protocol & Features
+Nika: Protocol & Features
 
 Message protocol design and parsing
 File transfer implementation
