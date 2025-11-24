@@ -15,14 +15,19 @@ A network systems final project implementing a command line-based chat applicati
 - person
 
 ## Project Structure
+```
 cli-chat-app/
 ├── src/
-│ ├── server/
-│ ├── client/
-│ └── common/
-├── docs/
-├── tests/
+│   ├── ChatServer.java
+│   ├── ChatClient.java
+│   └── ClientHandler.java
+├── Makefile
+├── run-server.sh
+├── run-client.sh
+├── PROTOCOL.md
+├── QUICKSTART.md
 └── README.md
+```
 
 
 ## Getting Started
