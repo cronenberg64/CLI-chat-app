@@ -3,11 +3,12 @@
 A network systems final project implementing a command line-based chat application with TCP sockets, concurrent server handling, and real-time messaging capabilities using java.
 
 ## Features
-- Direct messaging between users
-- File exchange capabilities  
-- Channel-based group messaging
-- Multi-threaded server architecture
-- Line-based command protocol
+- **Direct messaging** between users (1-on-1 private messages)
+- **File exchange** capabilities
+- **Channel-based group messaging** (multi-user channels)
+- **Auto-discovery** on local WiFi network (UDP broadcast)
+- **Multi-threaded server** architecture
+- **IRC-inspired protocol** (line-based commands)
 
 ## Team Members
 - Jonathan Setiawan
@@ -26,7 +27,37 @@ cli-chat-app/
 
 
 ## Getting Started
-*Details to be added as development progresses*
+
+### Automatic Connection (Same WiFi)
+When you run the client without arguments, it will automatically discover any server running on the same WiFi network:
+
+```bash
+java ChatClient
+```
+
+The client will:
+1. Listen for server broadcasts on the local network (5 second timeout)
+2. Automatically connect to the first server found
+3. Fall back to localhost:6667 if no server is discovered
+
+### Manual Connection
+You can still specify a server manually:
+
+```bash
+java ChatClient <host> [port]
+java ChatClient 192.168.1.100 6667
+```
+
+### Starting the Server
+```bash
+java ChatServer [port]
+java ChatServer 6667
+```
+
+The server will:
+- Listen for client connections on the specified port (default: 6667)
+- Broadcast its presence on UDP port 6666 every 3 seconds
+- Allow automatic discovery by clients on the same network
 
 ## Work Division
 
