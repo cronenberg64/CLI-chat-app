@@ -8,11 +8,21 @@ import java.util.concurrent.*;
  * Supports direct messages, channels, and file transfers
  */
 public class ChatServer {
+<<<<<<< HEAD
+    private static final int DISCOVERY_PORT = 6666;
+    private static final String DISCOVERY_MESSAGE = "CHAT_SERVER";
+
+=======
+>>>>>>> 4de9990 (Add files via upload)
     private int port;
     private ServerSocket serverSocket;
     private Map<String, ClientHandler> clients;
     private Map<String, Set<String>> channels;
     private boolean running;
+<<<<<<< HEAD
+    private Thread discoveryThread;
+=======
+>>>>>>> 4de9990 (Add files via upload)
 
     public ChatServer(int port) {
         this.port = port;
@@ -26,6 +36,13 @@ public class ChatServer {
             serverSocket = new ServerSocket(port);
             running = true;
             System.out.println("[SERVER] Started on port " + port);
+<<<<<<< HEAD
+
+            // Start discovery broadcast thread
+            startDiscoveryBroadcast();
+            System.out.println("[SERVER] Discovery broadcast enabled on port " + DISCOVERY_PORT);
+=======
+>>>>>>> 4de9990 (Add files via upload)
             System.out.println("[SERVER] Waiting for connections...");
 
             while (running) {
@@ -51,10 +68,54 @@ public class ChatServer {
         }
     }
 
+<<<<<<< HEAD
+    private void startDiscoveryBroadcast() {
+        discoveryThread = new Thread(() -> {
+            try (DatagramSocket socket = new DatagramSocket()) {
+                socket.setBroadcast(true);
+
+                // Get local IP address
+                String localIP = InetAddress.getLocalHost().getHostAddress();
+                String message = DISCOVERY_MESSAGE + ":" + localIP + ":" + port;
+                byte[] buffer = message.getBytes();
+
+                // Broadcast address for local network
+                InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length,
+                                                          broadcastAddress, DISCOVERY_PORT);
+
+                System.out.println("[DISCOVERY] Broadcasting on " + localIP + ":" + port);
+
+                while (running) {
+                    try {
+                        socket.send(packet);
+                        Thread.sleep(3000); // Broadcast every 3 seconds
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("[DISCOVERY] Error: " + e.getMessage());
+            }
+        });
+        discoveryThread.setDaemon(true);
+        discoveryThread.start();
+    }
+
+=======
+>>>>>>> 4de9990 (Add files via upload)
     public void shutdown() {
         running = false;
         System.out.println("[SERVER] Shutting down...");
 
+<<<<<<< HEAD
+        // Stop discovery broadcast
+        if (discoveryThread != null) {
+            discoveryThread.interrupt();
+        }
+
+=======
+>>>>>>> 4de9990 (Add files via upload)
         for (ClientHandler client : clients.values()) {
             client.disconnect();
         }
