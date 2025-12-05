@@ -5,33 +5,37 @@ JC = javac
 # Java runtime
 JVM = java
 
-# Source files
-SOURCES = ChatServer.java ClientHandler.java ChatClient.java
+# Source directory
+SRC_DIR = src
 
-# Class files
-CLASSES = ChatServer.class ClientHandler.class ChatClient.class
+# Output directory for class files
+OUT_DIR = bin
+
+# Source files
+SOURCES = $(SRC_DIR)/ChatServer.java $(SRC_DIR)/ClientHandler.java $(SRC_DIR)/ChatClient.java
 
 # Default target
 all: compile
 
 # Compile all Java files
 compile: $(SOURCES)
-	$(JC) $(SOURCES)
+	mkdir -p $(OUT_DIR)
+	$(JC) -d $(OUT_DIR) $(SOURCES)
 	@echo "Compilation successful!"
 
 # Run server
 server: compile
-	$(JVM) ChatServer
+	$(JVM) -cp $(OUT_DIR) ChatServer
 
 # Run server on custom port
 server-port: compile
 	@read -p "Enter port number [6667]: " port; \
 	port=$${port:-6667}; \
-	$(JVM) ChatServer $$port
+	$(JVM) -cp $(OUT_DIR) ChatServer $$port
 
 # Run client
 client: compile
-	$(JVM) ChatClient
+	$(JVM) -cp $(OUT_DIR) ChatClient
 
 # Run client with custom host/port
 client-connect: compile
@@ -39,11 +43,11 @@ client-connect: compile
 	read -p "Enter server port [6667]: " port; \
 	host=$${host:-localhost}; \
 	port=$${port:-6667}; \
-	$(JVM) ChatClient $$host $$port
+	$(JVM) -cp $(OUT_DIR) ChatClient $$host $$port
 
 # Clean compiled files
 clean:
-	rm -f *.class
+	rm -rf $(OUT_DIR)/*.class
 
 # Clean and recompile
 rebuild: clean compile
