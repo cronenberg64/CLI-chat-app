@@ -7,12 +7,6 @@ import java.nio.file.*;
  * Supports direct messages, channels, and file transfers
  */
 public class ChatClient {
-<<<<<<< HEAD
-    private static final int DISCOVERY_PORT = 6666;
-    private static final int DISCOVERY_TIMEOUT = 5000; // 5 seconds
-
-=======
->>>>>>> 4de9990 (Add files via upload)
     private String host;
     private int port;
     private Socket socket;
@@ -21,6 +15,8 @@ public class ChatClient {
     private BufferedReader consoleReader;
     private boolean running;
     private String nickname;
+    private final Object fileTransferLock = new Object();
+    private volatile boolean fileTransferReady = false;
 
     public ChatClient(String host, int port) {
         this.host = host;
@@ -28,42 +24,6 @@ public class ChatClient {
         this.running = false;
     }
 
-<<<<<<< HEAD
-    private boolean discoverServer() {
-        System.out.println("[DISCOVERY] Searching for chat servers on local network...");
-
-        try (DatagramSocket socket = new DatagramSocket(DISCOVERY_PORT)) {
-            socket.setSoTimeout(DISCOVERY_TIMEOUT);
-
-            byte[] buffer = new byte[256];
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-
-            try {
-                socket.receive(packet);
-
-                String message = new String(packet.getData(), 0, packet.getLength());
-                if (message.startsWith("CHAT_SERVER:")) {
-                    String[] parts = message.split(":");
-                    if (parts.length >= 3) {
-                        this.host = parts[1];
-                        this.port = Integer.parseInt(parts[2]);
-                        System.out.println("[DISCOVERY] Found server at " + host + ":" + port);
-                        return true;
-                    }
-                }
-            } catch (SocketTimeoutException e) {
-                System.out.println("[DISCOVERY] No server found on local network");
-                return false;
-            }
-        } catch (IOException e) {
-            System.err.println("[DISCOVERY] Error: " + e.getMessage());
-        }
-
-        return false;
-    }
-
-=======
->>>>>>> 4de9990 (Add files via upload)
     public void start() {
         try {
             socket = new Socket(host, port);
@@ -116,7 +76,8 @@ public class ChatClient {
     }
 
     private void handleServerMessage(String message) {
-        if (message.isEmpty()) return;
+        if (message.isEmpty())
+            return;
 
         String[] parts = message.split(" ", 2);
         String cmd = parts[0];
@@ -128,6 +89,12 @@ public class ChatClient {
                 break;
 
             case "OK":
+                if (args.startsWith("FILE")) {
+                    synchronized (fileTransferLock) {
+                        fileTransferReady = true;
+                        fileTransferLock.notifyAll();
+                    }
+                }
                 System.out.println("[OK] " + args);
                 break;
 
@@ -196,7 +163,7 @@ public class ChatClient {
                     String filename = fileParts[1];
                     int size = Integer.parseInt(fileParts[2]);
                     System.out.println("\n[FILE] " + sender + " wants to send you '" + filename +
-                                     "' (" + size + " bytes)");
+                            "' (" + size + " bytes)");
                     System.out.println("[FILE] Accepting file transfer...");
                     receiveFile(filename, size);
                 }
@@ -226,7 +193,8 @@ public class ChatClient {
 
             while (totalRead < size) {
                 int bytesRead = in.read(fileData, totalRead, size - totalRead);
-                if (bytesRead == -1) break;
+                if (bytesRead == -1)
+                    break;
                 totalRead += bytesRead;
             }
 
@@ -363,10 +331,23 @@ public class ChatClient {
             String filename = file.getName();
 
             // Send FILE command
-            send("FILE " + user + " " + filename + " " + fileData.length);
+            synchronized (fileTransferLock) {
+                fileTransferReady = false;
+                send("FILE " + user + " " + filename + " " + fileData.length);
 
-            // Wait briefly for OK response
-            Thread.sleep(100);
+                // Wait for OK response (max 5 seconds)
+                try {
+                    fileTransferLock.wait(5000);
+                } catch (InterruptedException e) {
+                    System.out.println("[ERROR] Interrupted while waiting for server response");
+                    return;
+                }
+
+                if (!fileTransferReady) {
+                    System.out.println("[ERROR] Server timed out or did not accept file transfer");
+                    return;
+                }
+            }
 
             // Send file data
             OutputStream out = socket.getOutputStream();
@@ -375,7 +356,7 @@ public class ChatClient {
 
             System.out.println("[FILE] Sent '" + filename + "' to " + user);
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             System.out.println("[ERROR] File send failed: " + e.getMessage());
         }
     }
@@ -406,10 +387,14 @@ public class ChatClient {
         running = false;
 
         try {
-            if (reader != null) reader.close();
-            if (writer != null) writer.close();
-            if (consoleReader != null) consoleReader.close();
-            if (socket != null && !socket.isClosed()) socket.close();
+            if (reader != null)
+                reader.close();
+            if (writer != null)
+                writer.close();
+            if (consoleReader != null)
+                consoleReader.close();
+            if (socket != null && !socket.isClosed())
+                socket.close();
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
         }
@@ -418,21 +403,11 @@ public class ChatClient {
     }
 
     public static void main(String[] args) {
-<<<<<<< HEAD
-        String host = null;
-        int port = 6667;
-        boolean autoDiscover = true;
-
-        if (args.length > 0) {
-            host = args[0];
-            autoDiscover = false;
-=======
         String host = "localhost";
         int port = 6667;
 
         if (args.length > 0) {
             host = args[0];
->>>>>>> 4de9990 (Add files via upload)
         }
         if (args.length > 1) {
             try {
@@ -443,21 +418,7 @@ public class ChatClient {
             }
         }
 
-<<<<<<< HEAD
-        ChatClient client = new ChatClient(host != null ? host : "localhost", port);
-
-        // Try auto-discovery if no host specified
-        if (autoDiscover) {
-            System.out.println("=== Auto-Discovery Mode ===");
-            if (!client.discoverServer()) {
-                System.out.println("Falling back to localhost:6667");
-                client = new ChatClient("localhost", 6667);
-            }
-        }
-
-=======
         ChatClient client = new ChatClient(host, port);
->>>>>>> 4de9990 (Add files via upload)
         client.start();
     }
 }

@@ -28,7 +28,7 @@ public class ClientHandler implements Runnable {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new PrintWriter(socket.getOutputStream(), true);
 
-            send("WELCOME Welcome to the chat server! Please set your nickname with NICK <name>\n");
+            send("WELCOME Welcome to the chat server! Please set your nickname with /nick <name>\n");
 
             String line;
             while (running && (line = reader.readLine()) != null) {
@@ -53,13 +53,13 @@ public class ClientHandler implements Runnable {
         String args = parts.length > 1 ? parts[1] : "";
 
         System.out.println("[CLIENT " + getIdentifier() + "] Command: " + cmd + " " +
-                          (args.length() > 50 ? args.substring(0, 50) + "..." : args));
+                (args.length() > 50 ? args.substring(0, 50) + "..." : args));
 
         // NICK command doesn't require authentication
         if (cmd.equals("NICK")) {
             handleNick(args);
         } else if (!authenticated) {
-            send("ERROR 401 Please set your nickname first with NICK <name>\n");
+            send("ERROR 401 Please set your nickname first with /nick <name>\n");
         } else {
             switch (cmd) {
                 case "JOIN":
@@ -97,7 +97,7 @@ public class ClientHandler implements Runnable {
 
         // Validate nickname
         if (nickname.isEmpty() || nickname.length() > 20 ||
-            !nickname.matches("[a-zA-Z0-9_]+")) {
+                !nickname.matches("[a-zA-Z0-9_]+")) {
             send("ERROR 400 Invalid nickname (1-20 alphanumeric characters)\n");
             return;
         }
@@ -262,7 +262,8 @@ public class ClientHandler implements Runnable {
             while (remaining > 0) {
                 int toRead = Math.min(remaining, data.length);
                 bytesRead = in.read(data, 0, toRead);
-                if (bytesRead == -1) break;
+                if (bytesRead == -1)
+                    break;
                 buffer.write(data, 0, bytesRead);
                 remaining -= bytesRead;
             }
@@ -312,9 +313,12 @@ public class ClientHandler implements Runnable {
         }
 
         try {
-            if (reader != null) reader.close();
-            if (writer != null) writer.close();
-            if (socket != null && !socket.isClosed()) socket.close();
+            if (reader != null)
+                reader.close();
+            if (writer != null)
+                writer.close();
+            if (socket != null && !socket.isClosed())
+                socket.close();
         } catch (IOException e) {
             System.err.println("Error closing client connection: " + e.getMessage());
         }
