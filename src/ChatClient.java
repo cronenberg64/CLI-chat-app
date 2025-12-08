@@ -1,3 +1,5 @@
+import javax.net.ssl.*;
+import java.security.*;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
@@ -26,7 +28,23 @@ public class ChatClient {
 
     public void start() {
         try {
-            socket = new Socket(host, port);
+            // Load TrustStore (using the same keystore file for simplicity)
+            KeyStore ks = KeyStore.getInstance("JKS");
+            try (FileInputStream fis = new FileInputStream("chat.jks")) {
+                ks.load(fis, "password".toCharArray());
+            }
+
+            // Initialize TrustManagerFactory
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+            tmf.init(ks);
+
+            // Initialize SSLContext
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, tmf.getTrustManagers(), null);
+
+            // Create SSLSocket
+            SSLSocketFactory ssf = sslContext.getSocketFactory();
+            socket = ssf.createSocket(host, port);
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new PrintWriter(socket.getOutputStream(), true);
             consoleReader = new BufferedReader(new InputStreamReader(System.in));
@@ -51,7 +69,7 @@ public class ChatClient {
                 }
             }
 
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             System.err.println("Connection error: " + e.getMessage());
         } finally {
             disconnect();

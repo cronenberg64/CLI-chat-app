@@ -1,3 +1,5 @@
+import javax.net.ssl.*;
+import java.security.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -13,9 +15,11 @@ public class ChatServer {
     private Map<String, ClientHandler> clients;
     private Map<String, Set<String>> channels;
     private boolean running;
+    private String serverPassword;
 
-    public ChatServer(int port) {
+    public ChatServer(int port, String serverPassword) {
         this.port = port;
+        this.serverPassword = serverPassword;
         this.clients = new ConcurrentHashMap<>();
         this.channels = new ConcurrentHashMap<>();
         this.running = false;
@@ -23,9 +27,26 @@ public class ChatServer {
 
     public void start() {
         try {
-            serverSocket = new ServerSocket(port);
+            // Load KeyStore
+            KeyStore ks = KeyStore.getInstance("JKS");
+            try (FileInputStream fis = new FileInputStream("chat.jks")) {
+                ks.load(fis, "password".toCharArray());
+            }
+
+            // Initialize KeyManagerFactory
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+            kmf.init(ks, "password".toCharArray());
+
+            // Initialize SSLContext
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(kmf.getKeyManagers(), null, null);
+
+            // Create SSLServerSocket
+            SSLServerSocketFactory ssf = sslContext.getServerSocketFactory();
+            serverSocket = ssf.createServerSocket(port);
+
             running = true;
-            System.out.println("[SERVER] Started on port " + port);
+            System.out.println("[SERVER] Started on port " + port + " (SSL/TLS Enabled)");
             System.out.println("[SERVER] Waiting for connections...");
 
             while (running) {
@@ -44,8 +65,9 @@ public class ChatServer {
                 }
             }
 
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             System.err.println("[SERVER] Failed to start: " + e.getMessage());
+            e.printStackTrace();
         } finally {
             shutdown();
         }
@@ -160,8 +182,13 @@ public class ChatServer {
         }
     }
 
+    public boolean checkPassword(String password) {
+        return serverPassword == null || serverPassword.equals(password);
+    }
+
     public static void main(String[] args) {
         int port = 6667;
+        String password = null;
 
         if (args.length > 0) {
             try {
@@ -172,7 +199,11 @@ public class ChatServer {
             }
         }
 
-        ChatServer server = new ChatServer(port);
+        if (args.length > 1) {
+            password = args[1];
+        }
+
+        ChatServer server = new ChatServer(port, password);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("\n[SERVER] Interrupted by user");
