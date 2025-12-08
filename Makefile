@@ -19,7 +19,6 @@ all: compile
 
 # Compile all Java files
 compile: $(SOURCES)
-	mkdir -p $(OUT_DIR)
 	$(JC) -d $(OUT_DIR) $(SOURCES)
 	@echo "Compilation successful!"
 
