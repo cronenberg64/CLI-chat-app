@@ -1,7 +1,3 @@
-# Compiled class files
-*.class
-bin/
-
 # System files
 .DS_Store
 
