@@ -15,6 +15,7 @@ A lightweight IRC-inspired text-based protocol for command-line chat.
 
 | Command | Format | Description | Example |
 |---------|--------|-------------|---------|
+| AUTH | `AUTH <password>` | Authenticate with server | `AUTH secret123` |
 | NICK | `NICK <nickname>` | Set/change username | `NICK alice` |
 | JOIN | `JOIN <channel>` | Join a channel | `JOIN #general` |
 | PART | `PART <channel>` | Leave a channel | `PART #general` |

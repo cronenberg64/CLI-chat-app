@@ -81,7 +81,19 @@ The protocol is text-based, using newline-terminated strings.
 - The server uses a **Thread-per-Client** model. Each connected client is assigned a dedicated thread (`ClientHandler`).
 - Shared resources (user lists, channel maps) are managed using thread-safe collections like `ConcurrentHashMap` and `ConcurrentHashMap.newKeySet()` to prevent race conditions during concurrent access.
 - The client uses two threads: the main thread for reading user input and a background thread for receiving server messages, allowing full-duplex communication.
+- The client uses two threads: the main thread for reading user input and a background thread for receiving server messages, allowing full-duplex communication.
 
+### 3.5 Security Implementation
+To address the vulnerability of plaintext communication, we implemented two key security features:
+1.  **SSL/TLS Encryption**:
+    - Replaced standard `Socket` and `ServerSocket` with `SSLSocket` and `SSLServerSocket`.
+    - Generated a self-signed RSA certificate (`chat.jks`) using Java's `keytool`.
+    - This ensures all data transmitted (messages, files, commands) is encrypted and cannot be sniffed by attackers on the network.
+2.  **Server Authentication**:
+    - Implemented a password protection mechanism.
+    - The server can be started with a password argument.
+    - Clients must send an `AUTH <password>` command as the very first step.
+    - The `ClientHandler` enforces this state; any other command sent before successful authentication results in an error.
 ## 4. Discussion
 
 ### 4.1 Strong Points
@@ -91,8 +103,8 @@ The protocol is text-based, using newline-terminated strings.
 
 ### 4.2 Weak Points
 - **Scalability**: The thread-per-client model limits scalability. If thousands of users connect, the server will run out of system threads. A non-blocking I/O (NIO) approach using `Selector` would be more scalable.
-- **Security**: All data, including private messages and files, is transmitted in plaintext. There is no SSL/TLS encryption, making it vulnerable to packet sniffing.
+- **Trust Management**: We use a self-signed certificate, which requires clients to explicitly trust it. In a production environment, a certificate from a trusted Certificate Authority (CA) would be required to avoid "untrusted certificate" warnings.
 - **Error Recovery**: If a file transfer is interrupted, there is no resume capability; the entire file must be re-sent.
 
 ## 5. Conclusion
-We successfully implemented a functional multi-threaded CLI chat application supporting messaging, channels, and file transfers. The project demonstrated the effective use of TCP sockets and Java's concurrency utilities. While the current implementation is robust for small-to-medium scale usage, future work would focus on implementing SSL encryption for security and migrating to Java NIO for better scalability.
+We successfully implemented a functional multi-threaded CLI chat application supporting messaging, channels, and file transfers. The project demonstrated the effective use of TCP sockets and Java's concurrency utilities. Furthermore, we enhanced the system's security by implementing SSL/TLS encryption and server authentication, making it robust against eavesdropping and unauthorized access. Future work would focus on migrating to Java NIO for better scalability and implementing a persistent database for user accounts.

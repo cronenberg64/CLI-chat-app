@@ -18,7 +18,12 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
         this.server = server;
         this.nickname = null;
-        this.authenticated = false;
+        // If server has no password, we are authenticated by default regarding
+        // password,
+        // but still need NICK. However, let's keep 'authenticated' as "fully ready".
+        // Actually, let's split it: passwordAuth and nickSet.
+        // For simplicity, let's say 'authenticated' means "passed password check".
+        this.authenticated = server.checkPassword(null); // True if no password set
         this.running = true;
     }
 
@@ -28,7 +33,12 @@ public class ClientHandler implements Runnable {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new PrintWriter(socket.getOutputStream(), true);
 
-            send("WELCOME Welcome to the chat server! Please set your nickname with /nick <name>\n");
+            send("WELCOME Welcome to the Secure Chat Server!\n");
+            if (!authenticated) {
+                send("INFO Please authenticate with /auth <password>\n");
+            } else {
+                send("INFO Please set your nickname with /nick <name>\n");
+            }
 
             String line;
             while (running && (line = reader.readLine()) != null) {
@@ -56,10 +66,16 @@ public class ClientHandler implements Runnable {
                 (args.length() > 50 ? args.substring(0, 50) + "..." : args));
 
         // NICK command doesn't require authentication
-        if (cmd.equals("NICK")) {
-            handleNick(args);
+        if (cmd.equals("AUTH")) {
+            handleAuth(args);
+        } else if (cmd.equals("NICK")) {
+            if (!authenticated) {
+                send("ERROR 401 You must authenticate first with /auth <password>\n");
+            } else {
+                handleNick(args);
+            }
         } else if (!authenticated) {
-            send("ERROR 401 Please set your nickname first with /nick <name>\n");
+            send("ERROR 401 You must authenticate first with /auth <password>\n");
         } else {
             switch (cmd) {
                 case "JOIN":
@@ -89,6 +105,20 @@ public class ClientHandler implements Runnable {
                 default:
                     send("ERROR 400 Unknown command: " + cmd + "\n");
             }
+        }
+    }
+
+    private void handleAuth(String password) {
+        if (authenticated) {
+            send("ERROR 400 Already authenticated\n");
+            return;
+        }
+
+        if (server.checkPassword(password.trim())) {
+            authenticated = true;
+            send("OK AUTH Password accepted. Now set your nickname with /nick <name>\n");
+        } else {
+            send("ERROR 401 Incorrect password\n");
         }
     }
 
@@ -123,7 +153,8 @@ public class ClientHandler implements Runnable {
         // Register new nickname
         this.nickname = nickname;
         server.registerClient(nickname, this);
-        this.authenticated = true;
+        // this.authenticated = true; // Removed this line as authentication is now
+        // password-based
 
         send("OK NICK Welcome, " + nickname + "!\n");
     }
