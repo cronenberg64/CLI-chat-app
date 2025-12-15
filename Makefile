@@ -12,7 +12,7 @@ SRC_DIR = src
 OUT_DIR = bin
 
 # Source files
-SOURCES = $(SRC_DIR)/ChatServer.java $(SRC_DIR)/ClientHandler.java $(SRC_DIR)/ChatClient.java
+SOURCES = $(SRC_DIR)/ChatServer.java $(SRC_DIR)/ClientHandler.java $(SRC_DIR)/ChatClient.java $(SRC_DIR)/GameSession.java
 
 # Default target
 all: compile

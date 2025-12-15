@@ -14,6 +14,7 @@ public class ChatServer {
     private ServerSocket serverSocket;
     private Map<String, ClientHandler> clients;
     private Map<String, Set<String>> channels;
+    private Map<ClientHandler, GameSession> activeGames;
     private boolean running;
     private String serverPassword;
 
@@ -22,6 +23,7 @@ public class ChatServer {
         this.serverPassword = serverPassword;
         this.clients = new ConcurrentHashMap<>();
         this.channels = new ConcurrentHashMap<>();
+        this.activeGames = new ConcurrentHashMap<>();
         this.running = false;
     }
 
@@ -184,6 +186,30 @@ public class ChatServer {
 
     public boolean checkPassword(String password) {
         return serverPassword == null || serverPassword.equals(password);
+    }
+
+    // --- Game Logic ---
+    public void startGame(ClientHandler p1, ClientHandler p2) {
+        GameSession game = new GameSession(p1, p2);
+        activeGames.put(p1, game);
+        activeGames.put(p2, game);
+
+        String p1Ship = game.getNextShipName(p1);
+        String p2Ship = game.getNextShipName(p2);
+
+        p1.send("GAME_SETUP You are Player 1. Place your " + p1Ship
+                + ". Format: /game place <coord> <H/V> (e.g., A1 H)\n" + game.getRenderedBoard(p1));
+        p2.send("GAME_SETUP You are Player 2. Place your " + p2Ship
+                + ". Format: /game place <coord> <H/V> (e.g., A1 H)\n" + game.getRenderedBoard(p2));
+    }
+
+    public GameSession getGame(ClientHandler player) {
+        return activeGames.get(player);
+    }
+
+    public void endGame(GameSession game) {
+        activeGames.remove(game.getPlayer1());
+        activeGames.remove(game.getPlayer2());
     }
 
     public static void main(String[] args) {
