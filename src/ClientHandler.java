@@ -91,7 +91,7 @@ public class ClientHandler implements Runnable {
                     handleChan(args);
                     break;
                 case "LIST":
-                    handleList();
+                    handleList(args);
                     break;
                 case "USERS":
                     handleUsers(args);
@@ -99,11 +99,15 @@ public class ClientHandler implements Runnable {
                 case "FILE":
                     handleFile(args);
                     break;
+                case "GAME":
+                    handleGame(args);
+                    break;
                 case "QUIT":
-                    handleQuit(args);
+                    running = false;
+                    send("QUIT Goodbye!\n");
                     break;
                 default:
-                    send("ERROR 400 Unknown command: " + cmd + "\n");
+                    send("ERROR 400 Unknown command\n");
             }
         }
     }
@@ -228,7 +232,111 @@ public class ClientHandler implements Runnable {
         send("OK CHAN Message sent to " + channel + "\n");
     }
 
-    private void handleList() {
+    private void handleGame(String args) {
+        String[] parts = args.split(" ", 2);
+        String subCmd = parts[0].toUpperCase();
+        String param = parts.length > 1 ? parts[1] : "";
+
+        switch (subCmd) {
+            case "CHALLENGE":
+                ClientHandler opponent = server.getClient(param);
+                if (opponent == null) {
+                    send("ERROR User not found\n");
+                } else if (opponent == this) {
+                    send("ERROR You cannot challenge yourself\n");
+                } else {
+                    opponent.send("GAME_REQ " + nickname + " has challenged you to Battleship! Type '/game accept "
+                            + nickname + "' to play.\n");
+                    send("OK GAME Challenge sent to " + param + "\n");
+                }
+                break;
+
+            case "ACCEPT":
+                ClientHandler challenger = server.getClient(param);
+                if (challenger == null) {
+                    send("ERROR User not found\n");
+                } else {
+                    server.startGame(challenger, this);
+                }
+                break;
+
+            case "PLACE":
+                GameSession setupGame = server.getGame(this);
+                if (setupGame == null) {
+                    send("ERROR You are not in a game\n");
+                    return;
+                }
+                // param expected: "A1 H"
+                String[] placeParts = param.split(" ");
+                if (placeParts.length < 2) {
+                    send("ERROR Usage: /game place <coord> <H/V>\n");
+                    return;
+                }
+                String result = setupGame.placeShip(this, placeParts[0], placeParts[1]);
+                if (result.startsWith("ERROR")) {
+                    send(result + "\n");
+                } else if (result.equals("READY")) {
+                    // Game starts!
+                    ClientHandler p1 = setupGame.getPlayer1();
+                    ClientHandler p2 = setupGame.getPlayer2();
+                    p1.send("GAME_START Game Started! Your turn.\n" + setupGame.getRenderedBoard(p1));
+                    p2.send("GAME_START Game Started! Opponent's turn.\n" + setupGame.getRenderedBoard(p2));
+                } else if (result.startsWith("PLACED")) {
+                    // Next ship
+                    String nextShip = setupGame.getNextShipName(this);
+                    if (nextShip.equals("WAITING")) {
+                        send("GAME_UPDATE All ships placed. Waiting for opponent...\n"
+                                + setupGame.getRenderedBoard(this));
+                    } else {
+                        send("GAME_SETUP Placed! Next: " + nextShip + "\n" + setupGame.getRenderedBoard(this));
+                    }
+                }
+                break;
+
+            case "FIRE":
+                GameSession game = server.getGame(this);
+                if (game == null) {
+                    send("ERROR You are not in a game\n");
+                    return;
+                }
+                String fireResult = game.processMove(this, param);
+                if (fireResult.startsWith("ERROR")) {
+                    send(fireResult + "\n");
+                } else {
+                    // Valid move
+                    ClientHandler opp = game.getOpponent(this);
+                    if (fireResult.equals("WIN")) {
+                        send("GAME_OVER YOU WON!\n" + game.getRenderedBoard(this));
+                        opp.send("GAME_OVER YOU LOST!\n" + game.getRenderedBoard(opp));
+                        server.endGame(game);
+                    } else {
+                        String msg = "You fired at " + param + ": " + fireResult + "!\n";
+                        send("GAME_UPDATE " + msg + game.getRenderedBoard(this));
+                        opp.send("GAME_UPDATE Opponent fired at " + param + ": " + fireResult + "!\n"
+                                + game.getRenderedBoard(opp));
+                    }
+                }
+                break;
+
+            case "SURRENDER":
+            case "QUIT":
+                GameSession activeGame = server.getGame(this);
+                if (activeGame != null) {
+                    ClientHandler opp = activeGame.getOpponent(this);
+                    opp.send("GAME_OVER Opponent surrendered! You win!\n");
+                    send("GAME_OVER You surrendered.\n");
+                    server.endGame(activeGame);
+                } else {
+                    send("ERROR No active game to surrender\n");
+                }
+                break;
+
+            default:
+                send("ERROR Unknown game command. Usage: /game [challenge|accept|fire|quit]\n");
+        }
+    }
+
+    private void handleList(String args) {
         java.util.List<String> channels = server.getChannelList();
         if (channels.isEmpty()) {
             send("CHANLIST No channels available\n");

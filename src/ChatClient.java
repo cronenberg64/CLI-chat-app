@@ -19,6 +19,7 @@ public class ChatClient {
     private String nickname;
     private final Object fileTransferLock = new Object();
     private volatile boolean fileTransferReady = false;
+    private boolean bannerShown = false;
 
     public ChatClient(String host, int port) {
         this.host = host;
@@ -82,7 +83,16 @@ public class ChatClient {
             try {
                 String line;
                 while (running && (line = reader.readLine()) != null) {
-                    handleServerMessage(line.trim());
+                    String trimmedLine = line.trim();
+                    if (trimmedLine.startsWith("GAME_START ") || trimmedLine.startsWith("GAME_UPDATE ")
+                            || trimmedLine.startsWith("GAME_SETUP ")) {
+                        handleGameMessage(trimmedLine);
+                    } else if (trimmedLine.startsWith("GAME_OVER ")) {
+                        handleGameMessage(trimmedLine);
+                        // "Returning to chat" is now handled inside handleGameMessage to ensure order
+                    } else {
+                        handleServerMessage(trimmedLine);
+                    }
                 }
             } catch (IOException e) {
                 if (running) {
@@ -325,6 +335,34 @@ public class ChatClient {
                 sendFile(fileParts[0].trim(), fileParts[1].trim());
                 break;
 
+            case "game":
+                if (args.isEmpty()) {
+                    System.out.println("Usage: /game [challenge|accept|fire|quit] <args>");
+                    return;
+                }
+                send("GAME " + args);
+                break;
+
+            case "fire":
+                if (args.isEmpty()) {
+                    System.out.println("Usage: /fire <coord> (e.g., A5)");
+                    return;
+                }
+                send("GAME FIRE " + args);
+                break;
+
+            case "place":
+                if (args.isEmpty()) {
+                    System.out.println("Usage: /place <coord> <H/V> (e.g., A1 H)");
+                    return;
+                }
+                send("GAME PLACE " + args);
+                break;
+
+            case "surrender":
+                send("GAME SURRENDER");
+                break;
+
             case "quit":
                 String quitMsg = args.isEmpty() ? "Goodbye" : args;
                 send("QUIT " + quitMsg);
@@ -379,6 +417,62 @@ public class ChatClient {
         }
     }
 
+    private void handleGameMessage(String line) {
+        // Clear screen (ANSI escape codes)
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+
+        // Only animate the banner once per game session
+        if (!bannerShown && (line.startsWith("GAME_START") || line.startsWith("GAME_SETUP"))) {
+            slowPrint("=================================================\n");
+            slowPrint("  ____    _  _____ _____ _     _____ ____  _   _ ___ ____  \n");
+            slowPrint(" | __ )  / \\|_   _|_   _| |   | ____/ ___|| | | |_ _|  _ \\ \n");
+            slowPrint(" |  _ \\ / _ \\ | |   | | | |   |  _| \\___ \\| |_| || || |_) |\n");
+            slowPrint(" | |_) / ___ \\| |   | | | |___| |___ ___) |  _  || ||  __/ \n");
+            slowPrint(" |____/_/   \\_\\_|   |_| |_____|_____|____/|_| |_|___|_|    \n");
+            slowPrint("=================================================\n");
+            bannerShown = true;
+        } else {
+            // Static print for updates to prevent flickering/re-animation
+            System.out.println("=================================================");
+            System.out.println("  ____    _  _____ _____ _     _____ ____  _   _ ___ ____  ");
+            System.out.println(" | __ )  / \\|_   _|_   _| |   | ____/ ___|| | | |_ _|  _ \\ ");
+            System.out.println(" |  _ \\ / _ \\ | |   | | | |   |  _| \\___ \\| |_| || || |_) |");
+            System.out.println(" | |_) / ___ \\| |   | | | |___| |___ ___) |  _  || ||  __/ ");
+            System.out.println(" |____/_/   \\_\\_|   |_| |_____|_____|____/|_| |_|___|_|    ");
+            System.out.println("=================================================");
+        }
+        // For updates or if banner already shown, we skip the banner to reduce
+        // clutter/flicker
+
+        // Remove the protocol prefix (GAME_START, etc) and print the rest
+        int firstSpace = line.indexOf(' ');
+        if (firstSpace != -1) {
+            System.out.println(line.substring(firstSpace + 1));
+        }
+
+        // Reset banner flag on Game Over
+        if (line.startsWith("GAME_OVER")) {
+            bannerShown = false;
+            System.out.println("\n[GAME] Game ended. Returning to chat...");
+            System.out.println("-------------------------------------------------");
+            displayHelp(); // Reprint help so user knows what to do
+            System.out.print("> "); // Explicit prompt
+            System.out.flush();
+        }
+    }
+
+    private void slowPrint(String text) {
+        for (char c : text.toCharArray()) {
+            System.out.print(c);
+            try {
+                Thread.sleep(2); // Fast typing effect
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     private void send(String message) {
         if (writer != null) {
             writer.println(message);
@@ -396,6 +490,8 @@ public class ChatClient {
         System.out.println("/list                      - List all channels");
         System.out.println("/users [#channel]          - List all users or users in channel");
         System.out.println("/file <user> <filepath>    - Send file to user");
+        System.out.println("/game challenge <user>     - Challenge a user to Battleship");
+        System.out.println("/game accept <user>        - Accept a Battleship challenge");
         System.out.println("/quit [message]            - Disconnect from server");
         System.out.println("/help                      - Show this help message");
         System.out.println("===========================\n");
