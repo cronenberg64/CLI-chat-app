@@ -57,8 +57,7 @@ public class ChatServer {
                     System.out.println("[SERVER] New connection from " + clientSocket.getRemoteSocketAddress());
 
                     ClientHandler handler = new ClientHandler(clientSocket, this);
-                    Thread thread = new Thread(handler);
-                    thread.start();
+                    new Thread(handler).start();
 
                 } catch (IOException e) {
                     if (running) {

@@ -62,6 +62,15 @@ public class ClientHandler implements Runnable {
         String cmd = parts[0].toUpperCase();
         String args = parts.length > 1 ? parts[1] : "";
 
+        // Handle IRC-style trailing parameters (prefixed with :)
+        if (args.startsWith(":")) {
+            args = args.substring(1);
+        } else if (args.contains(" :")) {
+            // Split into non-trailing and trailing parts
+            String[] splitArgs = args.split(" :", 2);
+            args = splitArgs[0] + " " + splitArgs[1];
+        }
+
         System.out.println("[CLIENT " + getIdentifier() + "] Command: " + cmd + " " +
                 (args.length() > 50 ? args.substring(0, 50) + "..." : args));
 
@@ -101,6 +110,17 @@ public class ClientHandler implements Runnable {
                     break;
                 case "GAME":
                     handleGame(args);
+                    break;
+                case "USER":
+                    // IRC USER command: USER <username> <mode> <unused> :<realname>
+                    // We just accept it to allow connection
+                    break;
+                case "PING":
+                    // IRC PING command: PING :<server>
+                    send("PONG " + args + "\n");
+                    break;
+                case "PRIVMSG":
+                    handlePrivMsg(args);
                     break;
                 case "QUIT":
                     running = false;
@@ -362,15 +382,17 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleFile(String args) {
-        String[] parts = args.split(" ", 3);
+        // Expected: FILE <user> <filename> <size> [checksum]
+        String[] parts = args.split(" ", 4);
         if (parts.length < 3) {
-            send("ERROR 400 Usage: FILE <user> <filename> <size>\n");
+            send("ERROR 400 Usage: FILE <user> <filename> <size> [checksum]\n");
             return;
         }
 
         String target = parts[0].trim();
         String filename = parts[1].trim();
         int size;
+        String checksum = parts.length > 3 ? parts[3].trim() : null;
 
         try {
             size = Integer.parseInt(parts[2].trim());
@@ -386,7 +408,11 @@ public class ClientHandler implements Runnable {
         }
 
         // Notify target
-        targetClient.send("FILEOFFER " + nickname + " " + filename + " " + size + "\n");
+        String offerMsg = "FILEOFFER " + nickname + " " + filename + " " + size;
+        if (checksum != null) {
+            offerMsg += " " + checksum;
+        }
+        targetClient.send(offerMsg + "\n");
 
         // Receive file data
         send("OK FILE Send file data now\n");
@@ -416,6 +442,34 @@ public class ClientHandler implements Runnable {
 
         } catch (IOException e) {
             send("ERROR 500 File transfer failed: " + e.getMessage() + "\n");
+        }
+    }
+
+    private void handlePrivMsg(String args) {
+        String[] parts = args.split(" ", 2);
+        if (parts.length < 2) {
+            send("ERROR 400 Usage: PRIVMSG <target> <message>\n");
+            return;
+        }
+
+        String target = parts[0].trim();
+        String message = parts[1];
+
+        if (target.startsWith("#")) {
+            // It's a channel message
+            if (!server.isInChannel(target, nickname)) {
+                send("ERROR 404 You are not in " + target + "\n");
+                return;
+            }
+            server.broadcastToChannel(target, "CHAN " + target + " " + nickname + " " + message + "\n", nickname);
+        } else {
+            // It's a direct message
+            ClientHandler targetClient = server.getClient(target);
+            if (targetClient == null) {
+                send("ERROR 404 User " + target + " not found\n");
+                return;
+            }
+            targetClient.send("MSG " + nickname + " " + message + "\n");
         }
     }
 

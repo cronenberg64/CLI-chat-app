@@ -187,15 +187,21 @@ public class ChatClient {
 
             case "FILEOFFER":
                 // File transfer offer
-                String[] fileParts = args.split(" ", 3);
-                if (fileParts.length == 3) {
+                // Expected: FILEOFFER <sender> <filename> <size> <hash>
+                String[] fileParts = args.split(" ", 4);
+                if (fileParts.length >= 3) {
                     String sender = fileParts[0];
                     String filename = fileParts[1];
                     int size = Integer.parseInt(fileParts[2]);
+                    String hash = fileParts.length > 3 ? fileParts[3] : null;
+
                     System.out.println("\n[FILE] " + sender + " wants to send you '" + filename +
                             "' (" + size + " bytes)");
+                    if (hash != null) {
+                        System.out.println("[FILE] Checksum (SHA-256): " + hash);
+                    }
                     System.out.println("[FILE] Accepting file transfer...");
-                    receiveFile(filename, size);
+                    receiveFile(filename, size, hash);
                 }
                 break;
 
@@ -205,7 +211,7 @@ public class ChatClient {
         }
     }
 
-    private void receiveFile(String filename, int size) {
+    private void receiveFile(String filename, int size, String expectedHash) {
         try {
             // Read FILEDATA header
             InputStream in = socket.getInputStream();
@@ -226,6 +232,18 @@ public class ChatClient {
                 if (bytesRead == -1)
                     break;
                 totalRead += bytesRead;
+            }
+
+            // Verify Checksum
+            if (expectedHash != null) {
+                String calculatedHash = calculateChecksum(fileData);
+                if (!calculatedHash.equalsIgnoreCase(expectedHash)) {
+                    System.out.println("[ERROR] File integrity check failed!");
+                    System.out.println("Expected: " + expectedHash);
+                    System.out.println("Actual:   " + calculatedHash);
+                    return; // Do not save corrupt file
+                }
+                System.out.println("[SUCCESS] File integrity verified.");
             }
 
             // Save file
@@ -388,10 +406,14 @@ public class ChatClient {
             byte[] fileData = Files.readAllBytes(file.toPath());
             String filename = file.getName();
 
+            // Calculate Checksum
+            String hash = calculateChecksum(fileData);
+            System.out.println("[FILE] Calculated SHA-256: " + hash);
+
             // Send FILE command
             synchronized (fileTransferLock) {
                 fileTransferReady = false;
-                send("FILE " + user + " " + filename + " " + fileData.length);
+                send("FILE " + user + " " + filename + " " + fileData.length + " " + hash);
 
                 // Wait for OK response (max 5 seconds)
                 try {
@@ -516,6 +538,24 @@ public class ChatClient {
         }
 
         System.out.println("Disconnected");
+    }
+
+    private String calculateChecksum(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1)
+                    hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("[ERROR] SHA-256 algorithm not found: " + e.getMessage());
+            return "UNKNOWN";
+        }
     }
 
     public static void main(String[] args) {
