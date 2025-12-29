@@ -32,26 +32,3 @@ cli-chat-app/
 
 ## Getting Started
 *Details to be added as development progresses*
-
-## Work Division
-
-Jonathan: Server Core
-
-TCP socket setup and server initialization
-Multi-threaded client handling
-Basic message broadcasting
-Server main loop and connection management
-
-Ryota: Client Application
-
-Client socket connection logic
-User interface and input handling
-Message display formatting
-Client command parsing
-
-Nika: Protocol & Features
-
-Message protocol design and parsing
-File transfer implementation
-Channel system (optional feature)
-Error handling and protocol states

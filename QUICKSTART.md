@@ -144,6 +144,38 @@ To test with multiple clients:
 5. All join the same channel: `/join #test`
 6. Send messages and watch them broadcast to everyone!
 
+## Connecting from Another Computer (LAN)
+
+To connect from another laptop on the same Wi-Fi:
+
+1.  **Find the Host IP**:
+    On the computer running the server, run:
+    ```bash
+    ifconfig | grep "inet " | grep -v 127.0.0.1
+    ```
+    Look for an IP like `192.168.x.x` or `172.x.x.x`.
+
+2.  **Prepare the Client Laptop**:
+    You need to copy the following files from the host to the client laptop:
+    - `bin/` folder (contains compiled code)
+    - `chat.jks` (required for SSL connection)
+
+3.  **Run the Client**:
+    On the second laptop, you can use the Makefile if you have it:
+    ```bash
+    make client-connect
+    # Enter server host: <your host IP address>
+    # Enter server port: <your host port address>
+    ```
+    
+    Or run manually:
+    ```bash
+    java -cp bin ChatClient <HOST_IP> <HOST_PORT>
+    ```
+    Replace `<HOST_IP>` with the IP you found in step 1.
+
+    *Note: Ensure your firewall allows connections on port 6667.*
+
 ## Architecture Overview
 
 ```

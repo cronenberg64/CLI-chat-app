@@ -83,15 +83,17 @@ public class ChatClient {
             try {
                 String line;
                 while (running && (line = reader.readLine()) != null) {
-                    String trimmedLine = line.trim();
-                    if (trimmedLine.startsWith("GAME_START ") || trimmedLine.startsWith("GAME_UPDATE ")
-                            || trimmedLine.startsWith("GAME_SETUP ")) {
-                        handleGameMessage(trimmedLine);
-                    } else if (trimmedLine.startsWith("GAME_OVER ")) {
-                        handleGameMessage(trimmedLine);
+                    // Do NOT trim globally, or we lose board indentation!
+                    String trimmedCheck = line.trim();
+
+                    if (trimmedCheck.startsWith("GAME_START ") || trimmedCheck.startsWith("GAME_UPDATE ")
+                            || trimmedCheck.startsWith("GAME_SETUP ")) {
+                        handleGameMessage(line); // Pass original line to preserve whitespace
+                    } else if (trimmedCheck.startsWith("GAME_OVER ")) {
+                        handleGameMessage(line);
                         // "Returning to chat" is now handled inside handleGameMessage to ensure order
                     } else {
-                        handleServerMessage(trimmedLine);
+                        handleServerMessage(line); // Pass original line to preserve whitespace for board rows
                     }
                 }
             } catch (IOException e) {

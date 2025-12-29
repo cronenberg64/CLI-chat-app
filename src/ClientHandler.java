@@ -306,8 +306,8 @@ public class ClientHandler implements Runnable {
                     // Valid move
                     ClientHandler opp = game.getOpponent(this);
                     if (fireResult.equals("WIN")) {
-                        send("GAME_OVER YOU WON!\n" + game.getRenderedBoard(this));
-                        opp.send("GAME_OVER YOU LOST!\n" + game.getRenderedBoard(opp));
+                        send("GAME_OVER YOU WON!\n");
+                        opp.send("GAME_OVER YOU LOST!\n");
                         server.endGame(game);
                     } else {
                         String msg = "You fired at " + param + ": " + fireResult + "!\n";
@@ -448,7 +448,17 @@ public class ClientHandler implements Runnable {
 
             server.removeFromAllChannels(nickname);
             server.unregisterClient(nickname);
+            server.removeFromAllChannels(nickname);
+            server.unregisterClient(nickname);
             server.broadcastQuit(nickname, "Disconnected");
+
+            // Check if in active game and surrender
+            GameSession activeGame = server.getGame(this);
+            if (activeGame != null) {
+                ClientHandler opp = activeGame.getOpponent(this);
+                opp.send("GAME_OVER Opponent disconnected! You win!\n");
+                server.endGame(activeGame);
+            }
         }
 
         try {

@@ -11,8 +11,26 @@ public class GameSession {
     private GameState state;
     private int p1ShipsPlaced = 0;
     private int p2ShipsPlaced = 0;
+    private List<Ship> p1Ships = new ArrayList<>();
+    private List<Ship> p2Ships = new ArrayList<>();
     private static final int[] SHIP_LENGTHS = { 5, 4, 3, 3, 2 };
     private static final String[] SHIP_NAMES = { "Carrier", "Battleship", "Cruiser", "Submarine", "Destroyer" };
+
+    private class Ship {
+        List<int[]> coords = new ArrayList<>();
+
+        void addCoord(int r, int c) {
+            coords.add(new int[] { r, c });
+        }
+
+        boolean isSunk(char[][] board) {
+            for (int[] p : coords) {
+                if (board[p[0]][p[1]] == 'S')
+                    return false; // At least one part intact
+            }
+            return true;
+        }
+    }
 
     public enum GameState {
         SETUP, PLAYING, FINISHED
@@ -65,12 +83,25 @@ public class GameSession {
         }
 
         // Place ship
+        // Place ship
+        Ship newShip = new Ship();
         for (int i = 0; i < len; i++) {
-            if (horizontal)
-                board[r][c + i] = 'S';
-            else
-                board[r + i][c] = 'S';
+            int rPos, cPos;
+            if (horizontal) {
+                rPos = r;
+                cPos = c + i;
+            } else {
+                rPos = r + i;
+                cPos = c;
+            }
+            board[rPos][cPos] = 'S';
+            newShip.addCoord(rPos, cPos);
         }
+
+        if (isP1)
+            p1Ships.add(newShip);
+        else
+            p2Ships.add(newShip);
 
         if (isP1)
             p1ShipsPlaced++;
@@ -179,25 +210,27 @@ public class GameSession {
         boolean isP1 = (player == player1);
 
         // Header
-        sb.append("\n   YOUR SHIPS                         ENEMY WATERS                     GAME INFO\n");
-        sb.append("   1  2  3  4  5  6  7  8  9  10      1  2  3  4  5  6  7  8  9  10   --------------------------\n");
+        sb.append(
+                "\n            YOUR SHIPS                           ENEMY WATERS                  GAME INFO\n");
+        sb.append(
+                "      1  2  3  4  5  6  7  8  9  10      1  2  3  4  5  6  7  8  9  10   --------------------------\n");
 
         for (int i = 0; i < 10; i++) {
             char rowLabel = (char) ('A' + i);
 
             // Left Board (Ships)
-            sb.append(rowLabel).append("  ");
+            sb.append("   ").append(rowLabel).append(" ");
             for (int j = 0; j < 10; j++) {
-                sb.append(myShips[i][j]).append("  ");
+                sb.append(" ").append(myShips[i][j]).append(" ");
             }
 
             // Spacer
             sb.append("   ");
 
             // Right Board (Shots)
-            sb.append(rowLabel).append("  ");
+            sb.append(rowLabel).append(" ");
             for (int j = 0; j < 10; j++) {
-                sb.append(myShots[i][j]).append("  ");
+                sb.append(" ").append(myShots[i][j]).append(" ");
             }
 
             // Side Panel Content
@@ -238,22 +271,20 @@ public class GameSession {
                 if (state == GameState.SETUP) {
                     return "TO PLACE: You " + (5 - myPlaced) + " | Enemy " + (5 - oppPlaced);
                 } else {
-                    return "ALIVE:    You " + countShips((isP1 ? board1 : board2)) + " | Enemy "
-                            + countShips((isP1 ? board2 : board1));
+                    return "ALIVE:    You " + countShips(isP1 ? p1Ships : p2Ships, isP1 ? board1 : board2) + " | Enemy "
+                            + countShips(isP1 ? p2Ships : p1Ships, isP1 ? board2 : board1);
                 }
             default:
                 return "";
         }
     }
 
-    private int countShips(char[][] board) {
+    private int countShips(List<Ship> ships, char[][] board) {
         int count = 0;
-        // This is a rough count of segments, ideally we track actual ships alive
-        // For now, just counting segments is fine or we can omit this if too complex
-        for (int i = 0; i < 10; i++)
-            for (int j = 0; j < 10; j++)
-                if (board[i][j] == 'S')
-                    count++;
+        for (Ship s : ships) {
+            if (!s.isSunk(board))
+                count++;
+        }
         return count;
     }
 
