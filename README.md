@@ -1,13 +1,14 @@
 # CLI Chat App
 
-A network systems final project implementing a command line-based chat application with TCP sockets, concurrent server handling, and real-time messaging capabilities using java.
+A command-line based chat application for the network systems class final project with TCP sockets, concurrent server handling, file transfer, channel-based group messaging, and battleship game integration using java in different devices.
 
 ## Features
 - Direct messaging between users
-- File exchange capabilities  
+- File exchange capabilities (with SHA-256 Checksums)
 - Channel-based group messaging
-- Multi-threaded server architecture
 - Line-based command protocol
+- IRC-based Protocol
+- Battleship Game Integration
 
 ## Team Members
 - Jonathan Setiawan
@@ -20,38 +21,16 @@ cli-chat-app/
 ├── src/
 │   ├── ChatServer.java
 │   ├── ChatClient.java
-│   └── ClientHandler.java
+│   ├── ClientHandler.java
+│   └── GameSession.java
+├── bin/
 ├── Makefile
-├── run-server.sh
-├── run-client.sh
-├── PROTOCOL.md
+├── generate_keystore.sh
+├── launch_client.sh
+├── chat.jks
 ├── QUICKSTART.md
 └── README.md
 ```
 
-
 ## Getting Started
-*Details to be added as development progresses*
-
-## Work Division
-
-Jonathan: Server Core
-
-TCP socket setup and server initialization
-Multi-threaded client handling
-Basic message broadcasting
-Server main loop and connection management
-
-Ryota: Client Application
-
-Client socket connection logic
-User interface and input handling
-Message display formatting
-Client command parsing
-
-Nika: Protocol & Features
-
-Message protocol design and parsing
-File transfer implementation
-Channel system (optional feature)
-Error handling and protocol states
+Please refer to the QUICKSTART.md file for a step-by-step guide on how to run the chat application.
