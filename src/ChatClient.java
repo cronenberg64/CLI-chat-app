@@ -4,11 +4,14 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 
-/**
- * Command-line Chat Client
- * Supports direct messages, channels, and file transfers
- */
 public class ChatClient {
+    /**
+     * Command-line Chat Client
+     * This is the program you run to talk to your friends!
+     * It handles sending messages, receiving them, transferring files, and playing
+     * Battleship.
+     */
+
     private String host;
     private int port;
     private Socket socket;
@@ -22,6 +25,7 @@ public class ChatClient {
     private boolean bannerShown = false;
 
     public ChatClient(String host, int port) {
+        // constructor to initialize variables
         this.host = host;
         this.port = port;
         this.running = false;
@@ -29,71 +33,77 @@ public class ChatClient {
 
     public void start() {
         try {
-            // Load TrustStore (using the same keystore file for simplicity)
+            // load the keystore
             KeyStore ks = KeyStore.getInstance("JKS");
             try (FileInputStream fis = new FileInputStream("chat.jks")) {
-                ks.load(fis, "password".toCharArray());
+                ks.load(fis, "password".toCharArray()); // unlock the keystore
             }
 
-            // Initialize TrustManagerFactory
+            // initialize TrustManagerFactory with the KeyStore
             TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
             tmf.init(ks);
 
-            // Initialize SSLContext
+            // initialize SSLContext with our trust managers
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, tmf.getTrustManagers(), null);
 
-            // Create SSLSocket
+            // create a secure SSLSocket instead of a plain Socket
             SSLSocketFactory ssf = sslContext.getSocketFactory();
             socket = ssf.createSocket(host, port);
+
+            // set up our streams for talking to the server
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            writer = new PrintWriter(socket.getOutputStream(), true);
+            writer = new PrintWriter(socket.getOutputStream(), true); // 'true' for auto-flush!
             consoleReader = new BufferedReader(new InputStreamReader(System.in));
+
             running = true;
 
             System.out.println("Connected to " + host + ":" + port);
 
-            // Start receiver thread
+            // create a thread to receive messages from the server
             Thread receiverThread = new Thread(new MessageReceiver());
-            receiverThread.setDaemon(true);
+            receiverThread.setDaemon(true); // daemon means this thread dies if the main program ends.
             receiverThread.start();
 
-            // Display help
+            // show the help menu
             displayHelp();
 
-            // Main input loop
+            // main input loop
             String input;
             while (running && (input = consoleReader.readLine()) != null) {
                 input = input.trim();
                 if (!input.isEmpty()) {
-                    processInput(input);
+                    processInput(input); // figure out what the user wants to do
                 }
             }
 
         } catch (IOException | GeneralSecurityException e) {
             System.err.println("Connection error: " + e.getMessage());
         } finally {
-            disconnect();
+            disconnect(); // clean up when we exit
         }
     }
 
+    // inner class to handle incoming messages from the server
     private class MessageReceiver implements Runnable {
         @Override
         public void run() {
             try {
                 String line;
+                // keep reading lines from the server until the connection closes
                 while (running && (line = reader.readLine()) != null) {
-                    // Do NOT trim globally, or we lose board indentation!
+                    // check the trimmed version for logic, but keep the original for formatting
                     String trimmedCheck = line.trim();
 
+                    // special handling for Battleship game messages
                     if (trimmedCheck.startsWith("GAME_START ") || trimmedCheck.startsWith("GAME_UPDATE ")
                             || trimmedCheck.startsWith("GAME_SETUP ")) {
-                        handleGameMessage(line); // Pass original line to preserve whitespace
+                        handleGameMessage(line); // pass original line to preserve whitespace/art
                     } else if (trimmedCheck.startsWith("GAME_OVER ")) {
                         handleGameMessage(line);
-                        // "Returning to chat" is now handled inside handleGameMessage to ensure order
                     } else {
-                        handleServerMessage(line); // Pass original line to preserve whitespace for board rows
+                        // normal chat messages
+                        handleServerMessage(line);
                     }
                 }
             } catch (IOException e) {
@@ -105,20 +115,24 @@ public class ChatClient {
         }
     }
 
+    // function that decides what to do with a message from the server
     private void handleServerMessage(String message) {
         if (message.isEmpty())
             return;
 
+        // split the message into command and arguments
         String[] parts = message.split(" ", 2);
         String cmd = parts[0];
         String args = parts.length > 1 ? parts[1] : "";
 
+        // handle different types of messages
         switch (cmd) {
             case "WELCOME":
                 System.out.println("\n" + args);
                 break;
 
             case "OK":
+                // for file transfer, if we get ok then we can start sending bytes
                 if (args.startsWith("FILE")) {
                     synchronized (fileTransferLock) {
                         fileTransferReady = true;
@@ -133,7 +147,7 @@ public class ChatClient {
                 break;
 
             case "MSG":
-                // Direct message received
+                // dm received
                 String[] msgParts = args.split(" ", 2);
                 if (msgParts.length == 2) {
                     System.out.println("\n[DM from " + msgParts[0] + "] " + msgParts[1]);
@@ -141,7 +155,7 @@ public class ChatClient {
                 break;
 
             case "CHAN":
-                // Channel message received
+                // channel message received
                 String[] chanParts = args.split(" ", 3);
                 if (chanParts.length == 3) {
                     System.out.println("\n[" + chanParts[0] + "] <" + chanParts[1] + "> " + chanParts[2]);
@@ -149,7 +163,7 @@ public class ChatClient {
                 break;
 
             case "JOIN":
-                // User joined channel
+                // someone joined a channel
                 String[] joinParts = args.split(" ", 2);
                 if (joinParts.length == 2) {
                     System.out.println("\n[" + joinParts[0] + "] *** " + joinParts[1] + " joined");
@@ -157,7 +171,7 @@ public class ChatClient {
                 break;
 
             case "PART":
-                // User left channel
+                // someone left a channel
                 String[] partParts = args.split(" ", 2);
                 if (partParts.length == 2) {
                     System.out.println("\n[" + partParts[0] + "] *** " + partParts[1] + " left");
@@ -165,13 +179,13 @@ public class ChatClient {
                 break;
 
             case "QUIT":
-                // User disconnected
+                // someone disconnected entirely
                 String[] quitParts = args.split(" ", 2);
                 System.out.println("\n*** " + quitParts[0] + " disconnected");
                 break;
 
             case "USERLIST":
-                // List of users
+                // show users in a channel
                 String[] userParts = args.split(" ", 2);
                 if (userParts.length == 2) {
                     System.out.println("\n[Users in " + userParts[0] + "] " + userParts[1]);
@@ -181,13 +195,12 @@ public class ChatClient {
                 break;
 
             case "CHANLIST":
-                // List of channels
+                // show channels
                 System.out.println("\n[Channels] " + args);
                 break;
 
             case "FILEOFFER":
-                // File transfer offer
-                // Expected: FILEOFFER <sender> <filename> <size> <hash>
+                // someone wants to send us a file
                 String[] fileParts = args.split(" ", 4);
                 if (fileParts.length >= 3) {
                     String sender = fileParts[0];
@@ -201,29 +214,30 @@ public class ChatClient {
                         System.out.println("[FILE] Checksum (SHA-256): " + hash);
                     }
                     System.out.println("[FILE] Accepting file transfer...");
+                    // automatically accept file
                     receiveFile(filename, size, hash);
                 }
                 break;
 
             default:
-                // Unknown message
+                // unknown message, just print it raw
                 System.out.println("\n" + message);
         }
     }
 
+    // function to receive a file from the server from another client
     private void receiveFile(String filename, int size, String expectedHash) {
         try {
-            // Read FILEDATA header
+            // expect a specific header first: FILEDATA
             InputStream in = socket.getInputStream();
             BufferedReader headerReader = new BufferedReader(new InputStreamReader(in));
-
             String header = headerReader.readLine();
             if (header == null || !header.startsWith("FILEDATA")) {
-                System.out.println("[ERROR] Invalid file transfer");
+                System.out.println("[ERROR] Invalid file transfer header");
                 return;
             }
 
-            // Read file data
+            // read the exact number of bytes for the file
             byte[] fileData = new byte[size];
             int totalRead = 0;
 
@@ -234,19 +248,19 @@ public class ChatClient {
                 totalRead += bytesRead;
             }
 
-            // Verify Checksum
+            // verify integrity using SHA-256
             if (expectedHash != null) {
                 String calculatedHash = calculateChecksum(fileData);
                 if (!calculatedHash.equalsIgnoreCase(expectedHash)) {
                     System.out.println("[ERROR] File integrity check failed!");
                     System.out.println("Expected: " + expectedHash);
                     System.out.println("Actual:   " + calculatedHash);
-                    return; // Do not save corrupt file
+                    return;
                 }
                 System.out.println("[SUCCESS] File integrity verified.");
             }
 
-            // Save file
+            // save the file to disk with a prefix so we don't overwrite existing files
             String savePath = "received_" + filename;
             Files.write(Paths.get(savePath), fileData);
 
@@ -257,24 +271,28 @@ public class ChatClient {
         }
     }
 
+    // function to process commands typed by the user in the console
     private void processInput(String input) {
         if (input.startsWith("/")) {
-            processCommand(input.substring(1));
+            processCommand(input.substring(1)); // Remove the '/'
         } else {
             System.out.println("Commands must start with /. Type /help for help");
         }
     }
 
+    // function to parse and execute client-side commands
     private void processCommand(String command) {
         String[] parts = command.split(" ", 2);
         String cmd = parts[0].toLowerCase();
         String args = parts.length > 1 ? parts[1] : "";
 
         switch (cmd) {
+            // display help message
             case "help":
                 displayHelp();
                 break;
 
+            // change nickname
             case "nick":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /nick <nickname>");
@@ -284,18 +302,21 @@ public class ChatClient {
                 send("NICK " + nickname);
                 break;
 
+            // join a channel
             case "join":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /join <#channel>");
                     return;
                 }
                 String joinChannel = args.trim();
+                // auto-add hash if missing
                 if (!joinChannel.startsWith("#")) {
                     joinChannel = "#" + joinChannel;
                 }
                 send("JOIN " + joinChannel);
                 break;
 
+            // leave a channel
             case "part":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /part <#channel>");
@@ -308,6 +329,7 @@ public class ChatClient {
                 send("PART " + partChannel);
                 break;
 
+            // send a private message
             case "msg":
                 String[] msgParts = args.split(" ", 2);
                 if (msgParts.length < 2) {
@@ -317,6 +339,7 @@ public class ChatClient {
                 send("MSG " + msgParts[0].trim() + " " + msgParts[1]);
                 break;
 
+            // send a message to a channel
             case "chan":
                 String[] chanParts = args.split(" ", 2);
                 if (chanParts.length < 2) {
@@ -330,10 +353,12 @@ public class ChatClient {
                 send("CHAN " + channel + " " + chanParts[1]);
                 break;
 
+            // list all channels
             case "list":
                 send("LIST");
                 break;
 
+            // list users in a channel
             case "users":
                 if (!args.isEmpty()) {
                     String usersChannel = args.trim();
@@ -346,6 +371,7 @@ public class ChatClient {
                 }
                 break;
 
+            // send a file to another client
             case "file":
                 String[] fileParts = args.split(" ", 2);
                 if (fileParts.length < 2) {
@@ -355,6 +381,7 @@ public class ChatClient {
                 sendFile(fileParts[0].trim(), fileParts[1].trim());
                 break;
 
+            // start a game
             case "game":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /game [challenge|accept|fire|quit] <args>");
@@ -363,6 +390,7 @@ public class ChatClient {
                 send("GAME " + args);
                 break;
 
+            // fire a coordinate
             case "fire":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /fire <coord> (e.g., A5)");
@@ -371,6 +399,7 @@ public class ChatClient {
                 send("GAME FIRE " + args);
                 break;
 
+            // place a coordinate
             case "place":
                 if (args.isEmpty()) {
                     System.out.println("Usage: /place <coord> <H/V> (e.g., A1 H)");
@@ -379,10 +408,12 @@ public class ChatClient {
                 send("GAME PLACE " + args);
                 break;
 
+            // surrender
             case "surrender":
                 send("GAME SURRENDER");
                 break;
 
+            // quit the chat
             case "quit":
                 String quitMsg = args.isEmpty() ? "Goodbye" : args;
                 send("QUIT " + quitMsg);
@@ -394,6 +425,7 @@ public class ChatClient {
         }
     }
 
+    // function to send a file to another client
     private void sendFile(String user, String filepath) {
         File file = new File(filepath);
 
@@ -403,21 +435,22 @@ public class ChatClient {
         }
 
         try {
+            // read the whole file into memory
             byte[] fileData = Files.readAllBytes(file.toPath());
             String filename = file.getName();
 
-            // Calculate Checksum
+            // calculate SHA-256 checksum so the receiver can verify it
             String hash = calculateChecksum(fileData);
             System.out.println("[FILE] Calculated SHA-256: " + hash);
 
-            // Send FILE command
+            // send FILE command to server: FILE <target> <filename> <size> <hash>
             synchronized (fileTransferLock) {
                 fileTransferReady = false;
                 send("FILE " + user + " " + filename + " " + fileData.length + " " + hash);
 
-                // Wait for OK response (max 5 seconds)
+                // wait for the server to say "OK"
                 try {
-                    fileTransferLock.wait(5000);
+                    fileTransferLock.wait(5000); // wait max 5 seconds
                 } catch (InterruptedException e) {
                     System.out.println("[ERROR] Interrupted while waiting for server response");
                     return;
@@ -429,7 +462,7 @@ public class ChatClient {
                 }
             }
 
-            // Send file data
+            // send the raw bytes
             OutputStream out = socket.getOutputStream();
             out.write(fileData);
             out.flush();
@@ -441,12 +474,13 @@ public class ChatClient {
         }
     }
 
+    // handles visual updates for the battleship game
     private void handleGameMessage(String line) {
-        // Clear screen (ANSI escape codes)
+        // clear screen using ANSI escape codes
         System.out.print("\033[H\033[2J");
         System.out.flush();
 
-        // Only animate the banner once per game session
+        // only animate the cool banner once per game session
         if (!bannerShown && (line.startsWith("GAME_START") || line.startsWith("GAME_SETUP"))) {
             slowPrint("=================================================\n");
             slowPrint("  ____    _  _____ _____ _     _____ ____  _   _ ___ ____  \n");
@@ -457,7 +491,7 @@ public class ChatClient {
             slowPrint("=================================================\n");
             bannerShown = true;
         } else {
-            // Static print for updates to prevent flickering/re-animation
+            // static print for backup
             System.out.println("=================================================");
             System.out.println("  ____    _  _____ _____ _     _____ ____  _   _ ___ ____  ");
             System.out.println(" | __ )  / \\|_   _|_   _| |   | ____/ ___|| | | |_ _|  _ \\ ");
@@ -466,37 +500,37 @@ public class ChatClient {
             System.out.println(" |____/_/   \\_\\_|   |_| |_____|_____|____/|_| |_|___|_|    ");
             System.out.println("=================================================");
         }
-        // For updates or if banner already shown, we skip the banner to reduce
-        // clutter/flicker
 
-        // Remove the protocol prefix (GAME_START, etc) and print the rest
+        // remove the protocol prefix and print the rest of the board
         int firstSpace = line.indexOf(' ');
         if (firstSpace != -1) {
             System.out.println(line.substring(firstSpace + 1));
         }
 
-        // Reset banner flag on Game Over
+        // reset banner flag on game over
         if (line.startsWith("GAME_OVER")) {
             bannerShown = false;
             System.out.println("\n[GAME] Game ended. Returning to chat...");
             System.out.println("-------------------------------------------------");
-            displayHelp(); // Reprint help so user knows what to do
-            System.out.print("> "); // Explicit prompt
+            displayHelp(); // reprint help so user knows what to do
+            System.out.print("> "); // explicit prompt
             System.out.flush();
         }
     }
 
+    // function to print text character by character for animation
     private void slowPrint(String text) {
         for (char c : text.toCharArray()) {
             System.out.print(c);
             try {
-                Thread.sleep(2); // Fast typing effect
+                Thread.sleep(2);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
     }
 
+    // helper function to send a line of text to the server
     private void send(String message) {
         if (writer != null) {
             writer.println(message);
@@ -504,6 +538,7 @@ public class ChatClient {
         }
     }
 
+    // helper function to show the list of available commands
     private void displayHelp() {
         System.out.println("\n=== Chat Client Commands ===");
         System.out.println("/nick <nickname>           - Set your nickname");
@@ -521,6 +556,7 @@ public class ChatClient {
         System.out.println("===========================\n");
     }
 
+    // helper function to close all resources
     private void disconnect() {
         running = false;
 
@@ -540,8 +576,10 @@ public class ChatClient {
         System.out.println("Disconnected");
     }
 
+    // helper function to calculate the SHA-256 hash of a byte array
     private String calculateChecksum(byte[] data) {
         try {
+            // calculate the SHA-256 hash of the data
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data);
             StringBuilder hexString = new StringBuilder();
@@ -562,6 +600,7 @@ public class ChatClient {
         String host = "localhost";
         int port = 6667;
 
+        // parse command line arguments
         if (args.length > 0) {
             host = args[0];
         }
@@ -574,6 +613,7 @@ public class ChatClient {
             }
         }
 
+        // create and start the client
         ChatClient client = new ChatClient(host, port);
         client.start();
     }

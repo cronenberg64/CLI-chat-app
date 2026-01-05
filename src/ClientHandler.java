@@ -1,11 +1,14 @@
 import java.io.*;
 import java.net.*;
 
-/**
- * Handles individual client connections
- * Each client runs in its own thread
- */
 public class ClientHandler implements Runnable {
+    /**
+     * Handles individual client connections.
+     * Think of this as a personal butler for each user connected to the server.
+     * It runs in its own thread so it can focus entirely on one client without
+     * distraction.
+     */
+
     private Socket socket;
     private ChatServer server;
     private BufferedReader reader;
@@ -15,36 +18,37 @@ public class ClientHandler implements Runnable {
     private boolean running;
 
     public ClientHandler(Socket socket, ChatServer server) {
+        // constructor to initialize variables
         this.socket = socket;
         this.server = server;
         this.nickname = null;
-        // If server has no password, we are authenticated by default regarding
-        // password,
-        // but still need NICK. However, let's keep 'authenticated' as "fully ready".
-        // Actually, let's split it: passwordAuth and nickSet.
-        // For simplicity, let's say 'authenticated' means "passed password check".
-        this.authenticated = server.checkPassword(null); // True if no password set
+        this.authenticated = server.checkPassword(null);
         this.running = true;
     }
 
+    // the main loop for this client's thread.
     @Override
     public void run() {
         try {
+            // set up input and output streams
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new PrintWriter(socket.getOutputStream(), true);
 
-            send("WELCOME Welcome to the Secure Chat Server!\n");
+            // instructions and texts
+            send("WELCOME Welcome to CLI chat app!\n");
+
             if (!authenticated) {
                 send("INFO Please authenticate with /auth <password>\n");
             } else {
                 send("INFO Please set your nickname with /nick <name>\n");
             }
 
+            // keep listening for commands until user leaves
             String line;
             while (running && (line = reader.readLine()) != null) {
                 line = line.trim();
                 if (!line.isEmpty()) {
-                    processCommand(line);
+                    processCommand(line); // execute command
                 }
             }
 
@@ -53,39 +57,39 @@ public class ClientHandler implements Runnable {
                 System.err.println("[CLIENT " + getIdentifier() + "] Error: " + e.getMessage());
             }
         } finally {
-            disconnect();
+            disconnect(); // clean up
         }
     }
 
+    // function to process commands
     private void processCommand(String command) {
+        // split the command from its arguments (e.g., "JOIN #general" -> "JOIN",
+        // "#general")
         String[] parts = command.split(" ", 2);
         String cmd = parts[0].toUpperCase();
         String args = parts.length > 1 ? parts[1] : "";
 
-        // Handle IRC-style trailing parameters (prefixed with :)
-        if (args.startsWith(":")) {
-            args = args.substring(1);
-        } else if (args.contains(" :")) {
-            // Split into non-trailing and trailing parts
-            String[] splitArgs = args.split(" :", 2);
-            args = splitArgs[0] + " " + splitArgs[1];
-        }
-
+        // log it to the server console so we can see what's happening
         System.out.println("[CLIENT " + getIdentifier() + "] Command: " + cmd + " " +
                 (args.length() > 50 ? args.substring(0, 50) + "..." : args));
 
-        // NICK command doesn't require authentication
+        // AUTH command (if password is required)
         if (cmd.equals("AUTH")) {
             handleAuth(args);
-        } else if (cmd.equals("NICK")) {
+        }
+        // NICK command (setting their name)
+        else if (cmd.equals("NICK")) {
             if (!authenticated) {
                 send("ERROR 401 You must authenticate first with /auth <password>\n");
             } else {
                 handleNick(args);
             }
-        } else if (!authenticated) {
+        }
+        // For everything else, they must be authenticated first
+        else if (!authenticated) {
             send("ERROR 401 You must authenticate first with /auth <password>\n");
         } else {
+            // switch statement for all other commands
             switch (cmd) {
                 case "JOIN":
                     handleJoin(args);
@@ -111,20 +115,8 @@ public class ClientHandler implements Runnable {
                 case "GAME":
                     handleGame(args);
                     break;
-                case "USER":
-                    // IRC USER command: USER <username> <mode> <unused> :<realname>
-                    // We just accept it to allow connection
-                    break;
-                case "PING":
-                    // IRC PING command: PING :<server>
-                    send("PONG " + args + "\n");
-                    break;
-                case "PRIVMSG":
-                    handlePrivMsg(args);
-                    break;
                 case "QUIT":
-                    running = false;
-                    send("QUIT Goodbye!\n");
+                    handleQuit(args);
                     break;
                 default:
                     send("ERROR 400 Unknown command\n");
@@ -132,6 +124,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // function to check the password
     private void handleAuth(String password) {
         if (authenticated) {
             send("ERROR 400 Already authenticated\n");
@@ -146,58 +139,60 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // function to set the user's nickname
     private void handleNick(String nickname) {
         nickname = nickname.trim();
 
-        // Validate nickname
+        // validate nickname format (alphanumeric, 1-20 chars)
         if (nickname.isEmpty() || nickname.length() > 20 ||
                 !nickname.matches("[a-zA-Z0-9_]+")) {
             send("ERROR 400 Invalid nickname (1-20 alphanumeric characters)\n");
             return;
         }
 
-        // Check if changing own nickname
+        // check if they are just re-sending their own name
         if (this.nickname != null && this.nickname.equalsIgnoreCase(nickname)) {
             send("OK NICK You are already known as " + this.nickname + "\n");
             return;
         }
 
-        // Check if nickname is taken
+        // check if someone else already has this name
         if (server.isNicknameTaken(nickname.toLowerCase())) {
             send("ERROR 409 Nickname already in use\n");
             return;
         }
 
-        // Unregister old nickname
+        // if they had an old name, remove it from the registry
         if (this.nickname != null) {
             server.unregisterClient(this.nickname);
             server.removeFromAllChannels(this.nickname);
         }
 
-        // Register new nickname
+        // register the new name
         this.nickname = nickname;
         server.registerClient(nickname, this);
-        // this.authenticated = true; // Removed this line as authentication is now
-        // password-based
 
         send("OK NICK Welcome, " + nickname + "!\n");
     }
 
+    // function to join a channel
     private void handleJoin(String channel) {
         channel = channel.trim();
 
+        // channels must start with #
         if (!channel.startsWith("#")) {
             send("ERROR 400 Channel name must start with #\n");
             return;
         }
 
         server.joinChannel(channel, nickname);
-        send("OK JOIN Joined " + channel + "\n");
+        send("OK JOIN You joined " + channel + "\n");
 
-        // Notify others
+        // broadcast to everyone in the channel
         server.broadcastToChannel(channel, "JOIN " + channel + " " + nickname + "\n", nickname);
     }
 
+    // function to leave a channel
     private void handlePart(String channel) {
         channel = channel.trim();
 
@@ -207,12 +202,13 @@ public class ClientHandler implements Runnable {
         }
 
         server.partChannel(channel, nickname);
-        send("OK PART Left " + channel + "\n");
+        send("OK PART You left " + channel + "\n");
 
-        // Notify others
+        // broadcast to everyone in the channel
         server.broadcastToChannel(channel, "PART " + channel + " " + nickname + "\n", null);
     }
 
+    // function to send a private message to another user
     private void handleMsg(String args) {
         String[] parts = args.split(" ", 2);
         if (parts.length < 2) {
@@ -233,6 +229,7 @@ public class ClientHandler implements Runnable {
         send("OK MSG Message sent to " + target + "\n");
     }
 
+    // function to send a message to a channel
     private void handleChan(String args) {
         String[] parts = args.split(" ", 2);
         if (parts.length < 2) {
@@ -243,15 +240,18 @@ public class ClientHandler implements Runnable {
         String channel = parts[0].trim();
         String message = parts[1];
 
+        // error handling for channel, check if the user is in the channel
         if (!server.isInChannel(channel, nickname)) {
             send("ERROR 404 You are not in " + channel + "\n");
             return;
         }
 
+        // broadcast to everyone else in the channel
         server.broadcastToChannel(channel, "CHAN " + channel + " " + nickname + " " + message + "\n", nickname);
         send("OK CHAN Message sent to " + channel + "\n");
     }
 
+    // function to handle battleship game commands
     private void handleGame(String args) {
         String[] parts = args.split(" ", 2);
         String subCmd = parts[0].toUpperCase();
@@ -259,6 +259,7 @@ public class ClientHandler implements Runnable {
 
         switch (subCmd) {
             case "CHALLENGE":
+                // challenge another user to a game
                 ClientHandler opponent = server.getClient(param);
                 if (opponent == null) {
                     send("ERROR User not found\n");
@@ -272,6 +273,7 @@ public class ClientHandler implements Runnable {
                 break;
 
             case "ACCEPT":
+                // accept a challenge
                 ClientHandler challenger = server.getClient(param);
                 if (challenger == null) {
                     send("ERROR User not found\n");
@@ -281,12 +283,13 @@ public class ClientHandler implements Runnable {
                 break;
 
             case "PLACE":
+                // place a ship on the board
                 GameSession setupGame = server.getGame(this);
                 if (setupGame == null) {
                     send("ERROR You are not in a game\n");
                     return;
                 }
-                // param expected: "A1 H"
+                // need correct parameters
                 String[] placeParts = param.split(" ");
                 if (placeParts.length < 2) {
                     send("ERROR Usage: /game place <coord> <H/V>\n");
@@ -296,13 +299,13 @@ public class ClientHandler implements Runnable {
                 if (result.startsWith("ERROR")) {
                     send(result + "\n");
                 } else if (result.equals("READY")) {
-                    // Game starts!
+                    // both player setups are done
                     ClientHandler p1 = setupGame.getPlayer1();
                     ClientHandler p2 = setupGame.getPlayer2();
                     p1.send("GAME_START Game Started! Your turn.\n" + setupGame.getRenderedBoard(p1));
                     p2.send("GAME_START Game Started! Opponent's turn.\n" + setupGame.getRenderedBoard(p2));
                 } else if (result.startsWith("PLACED")) {
-                    // Next ship
+                    // ship placed, ask for the next one
                     String nextShip = setupGame.getNextShipName(this);
                     if (nextShip.equals("WAITING")) {
                         send("GAME_UPDATE All ships placed. Waiting for opponent...\n"
@@ -314,6 +317,7 @@ public class ClientHandler implements Runnable {
                 break;
 
             case "FIRE":
+                // fire a shot
                 GameSession game = server.getGame(this);
                 if (game == null) {
                     send("ERROR You are not in a game\n");
@@ -323,7 +327,7 @@ public class ClientHandler implements Runnable {
                 if (fireResult.startsWith("ERROR")) {
                     send(fireResult + "\n");
                 } else {
-                    // Valid move
+                    // valid move
                     ClientHandler opp = game.getOpponent(this);
                     if (fireResult.equals("WIN")) {
                         send("GAME_OVER YOU WON!\n");
@@ -340,6 +344,7 @@ public class ClientHandler implements Runnable {
 
             case "SURRENDER":
             case "QUIT":
+                // give up
                 GameSession activeGame = server.getGame(this);
                 if (activeGame != null) {
                     ClientHandler opp = activeGame.getOpponent(this);
@@ -356,6 +361,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // list available channels
     private void handleList(String args) {
         java.util.List<String> channels = server.getChannelList();
         if (channels.isEmpty()) {
@@ -365,6 +371,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // function that list users in a channel or all users
     private void handleUsers(String args) {
         String channel = args.trim();
 
@@ -381,8 +388,9 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // function to handle file transfer requests
     private void handleFile(String args) {
-        // Expected: FILE <user> <filename> <size> [checksum]
+        // expected: FILE <user> <filename> <size> [checksum]
         String[] parts = args.split(" ", 4);
         if (parts.length < 3) {
             send("ERROR 400 Usage: FILE <user> <filename> <size> [checksum]\n");
@@ -407,14 +415,14 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        // Notify target
+        // notify target that a file is coming
         String offerMsg = "FILEOFFER " + nickname + " " + filename + " " + size;
         if (checksum != null) {
             offerMsg += " " + checksum;
         }
         targetClient.send(offerMsg + "\n");
 
-        // Receive file data
+        // tell sender to start sending data
         send("OK FILE Send file data now\n");
 
         try {
@@ -424,6 +432,7 @@ public class ClientHandler implements Runnable {
             int remaining = size;
             int bytesRead;
 
+            // read exactly 'size' bytes from the stream
             while (remaining > 0) {
                 int toRead = Math.min(remaining, data.length);
                 bytesRead = in.read(data, 0, toRead);
@@ -435,7 +444,7 @@ public class ClientHandler implements Runnable {
 
             byte[] fileData = buffer.toByteArray();
 
-            // Forward to target
+            // forward the data to the target client
             targetClient.sendFileData(fileData);
 
             send("OK FILE File sent to " + target + "\n");
@@ -445,40 +454,14 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handlePrivMsg(String args) {
-        String[] parts = args.split(" ", 2);
-        if (parts.length < 2) {
-            send("ERROR 400 Usage: PRIVMSG <target> <message>\n");
-            return;
-        }
-
-        String target = parts[0].trim();
-        String message = parts[1];
-
-        if (target.startsWith("#")) {
-            // It's a channel message
-            if (!server.isInChannel(target, nickname)) {
-                send("ERROR 404 You are not in " + target + "\n");
-                return;
-            }
-            server.broadcastToChannel(target, "CHAN " + target + " " + nickname + " " + message + "\n", nickname);
-        } else {
-            // It's a direct message
-            ClientHandler targetClient = server.getClient(target);
-            if (targetClient == null) {
-                send("ERROR 404 User " + target + " not found\n");
-                return;
-            }
-            targetClient.send("MSG " + nickname + " " + message + "\n");
-        }
-    }
-
+    // function to handle user quitting
     private void handleQuit(String message) {
         String quitMsg = message.isEmpty() ? "Client disconnected" : message;
         send("OK QUIT " + quitMsg + "\n");
         running = false;
     }
 
+    // helper to send a message to this client
     public void send(String message) {
         if (writer != null) {
             writer.print(message);
@@ -486,27 +469,29 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // helper to send binary file data to this client
     public void sendFileData(byte[] fileData) throws IOException {
         OutputStream out = socket.getOutputStream();
+        // send a header first so the client knows what's coming
         String header = "FILEDATA " + fileData.length + "\n";
         out.write(header.getBytes());
         out.write(fileData);
         out.flush();
     }
 
+    // clean up resources when the client disconnects
     public void disconnect() {
         running = false;
 
         if (nickname != null) {
             System.out.println("[CLIENT " + nickname + "] Disconnected");
 
-            server.removeFromAllChannels(nickname);
-            server.unregisterClient(nickname);
+            // remove them from everything
             server.removeFromAllChannels(nickname);
             server.unregisterClient(nickname);
             server.broadcastQuit(nickname, "Disconnected");
 
-            // Check if in active game and surrender
+            // if they were in a game, forfeit
             GameSession activeGame = server.getGame(this);
             if (activeGame != null) {
                 ClientHandler opp = activeGame.getOpponent(this);
